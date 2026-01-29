@@ -4,13 +4,13 @@ import _core_ext as vamp
 import pybullet as p
 import pybullet_data
 
-# 1. Pose Configuration
+# Pose Configuration
 # Pose A: Start (Extended forward)
 pose_a = [0.0, -1.5, 3.1, 0.0, 0.0, 0.0]
 # Pose B: Goal (Inclined forward)
 pose_b = [-1.0, -0.6, 3.1, 0.0, 0.0, 0.0]
 
-# 2. Environment Definition (Obstacles)
+# Environment Definition (Obstacles)
 
 obstaculo_centro = [-0.4, 0.4, 0.5, 0.15]
 problem = [obstaculo_centro]
@@ -35,7 +35,7 @@ def run_demo():
 
     print(f"VAMP Environment configured.")
 
-    # 3. Validate Poses (Use env, not problem)
+    # Validate Poses (Use env, not problem)
     print("Validating poses...")
     if not vamp.frida_real.validate(pose_a, env):
         print("Error: Start Pose in collision.")
@@ -44,7 +44,7 @@ def run_demo():
         print("Error: Goal Pose in collision.")
         return
 
-    # 4. Planning with RRTC
+    # Planning with RRTC
     settings = vamp.RRTCSettings()
     # Optional settings for TMR (you can play with these later)
     settings.max_iterations = 2000
