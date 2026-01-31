@@ -85,6 +85,10 @@ set_target_properties(vamp_cpp PROPERTIES
 # Create alias target for modern CMake usage
 add_library(vamp::vamp ALIAS vamp_cpp)
 
+
+set(VAMP_ROBOT_MODULES frida_real xarm sphere)
+set(VAMP_ROBOT_STRUCTS FRIDA_Real Xarm Sphere)
+
 # Build Python bindings
 include(Python)
 
