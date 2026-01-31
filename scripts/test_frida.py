@@ -4,15 +4,12 @@ import _core_ext as vamp
 import pybullet as p
 import pybullet_data
 
-# Pose Configuration
-# Pose A: Start (Extended forward)
-pose_a = [0.0, -1.5, 3.1, 0.0, 0.0, 0.0]
-# Pose B: Goal (Inclined forward)
-pose_b = [-1.0, -0.6, 3.1, 0.0, 0.0, 0.0]
 
-# Environment Definition (Obstacles)
+# [joint1, joint2, joint3, joint4, joint5, joint6, rightfinger, leftfinger]
+pose_a = [0.0, -2.1, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0]
+pose_b = [0.0, -2.1, -1.1, -1.0, 0.0, 0.0, 0.0, 0.0]
 
-obstaculo_centro = [-0.4, 0.4, 0.5, 0.15]
+obstaculo_centro = [0, -0.2, 1.0, 0.1]
 problem = [obstaculo_centro]
 
 def run_demo():
@@ -20,66 +17,57 @@ def run_demo():
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF("plane.urdf")
     
-    robot_path = "/home/dominguez/roborregos/home_ws/src/robot_description/frida_description/urdf/xarm/spherized_xarm/xarm6.urdf"
-    robot_id = p.loadURDF(robot_path, useFixedBase=True)
+    robot_path = "/home/dominguez/roborregos/home_ws/src/robot_description/frida_description/urdf/TMR2025/frida_real.urdf"
 
-    # Vamp Environment Setup
+    robot_id = p.loadURDF(robot_path, useFixedBase=True, flags=p.URDF_USE_SELF_COLLISION)
+
+    for i in range(p.getNumJoints(robot_id)):
+        p.changeVisualShape(robot_id, i, rgbaColor=[0, 0, 0, 0.6])
+
     env = vamp.Environment()
     for obst in problem:
         s = vamp.Sphere(obst[:3], obst[3])
         env.add_sphere(s)
-        
-        # Draw in PyBullet
-        v_shape = p.createVisualShape(p.GEOM_SPHERE, radius=obst[3], rgbaColor=[1, 0, 0, 0.7])
+
+        v_shape = p.createVisualShape(p.GEOM_SPHERE, radius=obst[3], rgbaColor=[1, 0, 0, 0.5])
         p.createMultiBody(baseVisualShapeIndex=v_shape, basePosition=obst[:3])
 
-    print(f"VAMP Environment configured.")
+    movable_joints = []
+    for i in range(p.getNumJoints(robot_id)):
+        info = p.getJointInfo(robot_id, i)
+        if info[2] in [p.JOINT_REVOLUTE, p.JOINT_PRISMATIC]:
+            movable_joints.append(i)
 
-    # Validate Poses (Use env, not problem)
     print("Validating poses...")
-    if not vamp.frida_real.validate(pose_a, env):
-        print("Error: Start Pose in collision.")
-        return
-    if not vamp.frida_real.validate(pose_b, env):
-        print("Error: Goal Pose in collision.")
-        return
+    if not vamp.frida_real.validate(pose_a, env) or not vamp.frida_real.validate(pose_b, env):
+        print("VAMP detected collision at start or goal. Check the collision model in C++.")
 
-    # Planning with RRTC
+    print("Planning with RRTC...")
     settings = vamp.RRTCSettings()
-    # Optional settings for TMR (you can play with these later)
     settings.max_iterations = 2000
-
-
     rng = vamp.frida_real.xorshift()
-    print("Planning path with RRTC...")
-    start_time = time.time()
-
-    # IMPORTANT: rrtc returns an object, we need to extract the .path
     result = vamp.frida_real.rrtc(pose_a, pose_b, env, settings, rng)
-    
-    if result and len(result.path) >= 2:
-        simplify_settings = vamp.SimplifySettings()
-        opt_result = vamp.frida_real.simplify(result.path, env, simplify_settings, rng)
-        path = opt_result.path
-        print(f"Obtained path with {len(path)} waypoints after simplification.")
 
-        # Generate 50 intermediate steps between each planner point
-        steps = 50
+    if result and len(result.path) >= 2:
+
+        opt_result = vamp.frida_real.simplify(result.path, env, vamp.SimplifySettings(), rng)
+        path = opt_result.path
+        print(f"Route found: {len(path)} waypoints.")
 
         while True:
             for i in range(len(path) - 1):
-                start_p = np.array(path[i])
-                end_p = np.array(path[i+1])
-                
-                # Simple linear interpolation
+                start_p, end_p = np.array(path[i]), np.array(path[i+1])
+                steps = 50
                 for t in range(steps):
-                    fraction = t / steps
-                    interp_pose = start_p + (end_p - start_p) * fraction
-
-                    for joint in range(6):
-                        p.resetJointState(robot_id, joint, interp_pose[joint])
+                    interp_pose = start_p + (end_p - start_p) * (t / steps)
+                    
+                   
+                    for idx, j_id in enumerate(movable_joints[:8]):
+                        p.resetJointState(robot_id, j_id, interp_pose[idx])
                     time.sleep(0.01)
             time.sleep(1)
+    else:
+        print("RRTC could not find a safe solution.")
 
 if __name__ == "__main__":
     run_demo()
